@@ -220,6 +220,10 @@ function Locate {
     $out = Join-Path $here ('patches\{0}.patch' -f $slug)
 
     Write-Host ""
+    # remove any stale candidate first: otherwise an old file (e.g. left
+    # over from a previous version or an overwrite-extract) makes the
+    # "candidate patch written" message lie about THIS run's outcome.
+    Remove-Item -LiteralPath $out -ErrorAction SilentlyContinue
     $o = & $py @pyArgs $tool find $img (@($kw -split '\s+' | Where-Object { $_ })) @liveArgs --out $out 2>&1
     $o | ForEach-Object { Write-Host "  $_" }
     if (-not (Test-Path -LiteralPath $out)) {
@@ -235,6 +239,7 @@ function Locate {
             $ans = (Read-Host "  FROM value to use (hex like 0x2, blank = cancel)").Trim()
             if ($ans) {
                 Write-Host ""
+                Remove-Item -LiteralPath $out -ErrorAction SilentlyContinue
                 $o = & $py @pyArgs $tool find $img (@($kw -split '\s+' | Where-Object { $_ })) @liveArgs --out $out --from $ans 2>&1
                 $o | ForEach-Object { Write-Host "  $_" }
             }
