@@ -818,20 +818,22 @@ def print_question(q, indent='  '):
         print('%s      Numeric  min=%s max=%s' % (indent, hexv(d['min']), hexv(d['max'])))
 
 
-def patch_stub(q, live=None):
+def patch_stub(q, live=None, from_value=None):
     """Best-effort patch-file stub for a two-valued selector.
 
     FROM is taken from the live NVRAM value ONLY when the Setup and Custom
-    records agree.  When they disagree the stub refuses to guess and prints
-    instructions instead: a dump alone cannot tell which record the firmware
-    honours.  Observed on one machine: fTPM stayed enabled while Custom read
-    Disable, and the TPM on/off state tracked Setup across reboots -- neither
-    "Custom wins" nor "Setup wins" is a safe rule.  The reliable way out is to
-    flip the setting once in BIOS setup (a BIOS-side change re-syncs the
-    records), re-dump, and retry when the records agree -- or hand-write the
-    patch (docs/making-a-patch.md).  TO is the remaining "meaningful"
-    direction: off when FROM is an "on" flavour, firmware-TPM / enable
-    flavour otherwise.
+    records agree.  When they disagree the stub refuses to guess: a dump
+    alone cannot tell which record the firmware honours.  Observed on one
+    machine: fTPM stayed enabled while Custom read Disable, and the TPM
+    on/off state tracked Setup across reboots -- neither "Custom wins" nor
+    "Setup wins" is a safe rule.  The way out is either (a) flip the setting
+    once in BIOS setup (a BIOS-side change re-syncs the records), re-dump,
+    retry when the records agree, or (b) pass from_value (--from): the
+    operator decides which record's byte is effective, e.g. because the
+    feature's actual state is verifiable in the OS.  An operator-supplied
+    FROM is never a guess, so it is honoured -- and marked as such in the
+    stub's NOTE line.  TO is the remaining "meaningful" direction: off when
+    FROM is an "on" flavour, firmware-TPM / enable flavour otherwise.
     """
     vs = q.get('varstore') or {}
     opts = [o for o in q.get('options', []) if o.get('value') is not None]
@@ -853,13 +855,29 @@ def patch_stub(q, live=None):
                 live_note = 'live value 0x%x has no matching option name' % vals[0]
         else:
             disagree = ', '.join('%s=0x%x' % (n, v) for n, v in ents)
-            print('  !! live records disagree (%s) -- no patch stub generated.' % disagree)
-            print('  !! A dump alone cannot tell which record this firmware honours')
-            print('  !! (observed: fTPM stayed enabled while Custom read Disable).')
-            print('  !! Flip the setting once in BIOS setup, re-dump, and retry')
-            print('  !! when the records agree -- or hand-write the patch:')
-            print('  !! docs/making-a-patch.md.')
-            return None
+            if from_value is not None:
+                hit = [(n, v) for n, v in ents if v == from_value]
+                if not hit:
+                    print('  !! --from %s matches NEITHER record value (%s) '
+                          '-- no patch stub generated.' % (hexv(from_value), disagree))
+                    return None
+                from_opt = next((o for o in opts if o['value'] == from_value), None)
+                if from_opt is None:
+                    print('  !! --from %s has no matching option name '
+                          '-- no patch stub generated.' % hexv(from_value))
+                    return None
+                live_note = ('live records disagree (%s); FROM is the '
+                             'operator-supplied value %s (record %s) -- the '
+                             'operator confirmed which record the firmware '
+                             'honours' % (disagree, hexv(from_value), hit[0][0]))
+            else:
+                print('  !! live records disagree (%s) -- no patch stub generated.' % disagree)
+                print('  !! A dump alone cannot tell which record this firmware honours')
+                print('  !! (observed: fTPM stayed enabled while Custom read Disable).')
+                print('  !! Flip the setting once in BIOS setup, re-dump, and retry')
+                print('  !! when the records agree -- or decide FROM yourself by')
+                print('  !! passing --from <hex> (run.cmd option 2 will offer this).')
+                return None
 
     if from_opt is None:                   # fallback: any enable/on
         for o, n in low:
@@ -988,6 +1006,13 @@ def cmd_find(args):
         want = args.varstore.lower()
         qs = [q for q in qs if ((q.get('varstore') or {}).get('name') or '').lower() == want]
 
+    from_value = None
+    if getattr(args, 'from_value', None):
+        try:
+            from_value = int(str(args.from_value), 0)
+        except ValueError:
+            raise SystemExit('--from: not a hex/dec value: %r' % args.from_value)
+
     recs = None
     if getattr(args, 'live', None):
         recs = [r for r in parse_h2ouve(args.live) if r.get('size')]
@@ -1044,7 +1069,7 @@ def cmd_find(args):
             print('  %s  IFR default = %s  (%s)' % (
                 ' ' * 11, hexv(dflt['value']) if dflt['value'] is not None else '?',
                 dflt['name'] or 'no option name'))
-        stub = patch_stub(q, live=lv)
+        stub = patch_stub(q, live=lv, from_value=from_value)
         if stub:
             stubs.append(stub)
             print()
@@ -1731,6 +1756,10 @@ def main(argv=None):
     s.add_argument('--live', default=None, metavar='DUMP',
                    help='H2OUVE -gv dump (text); show the CURRENT value of '
                         'each match alongside the IFR default')
+    s.add_argument('--from', dest='from_value', default=None, metavar='HEX',
+                   help='when the Setup/Custom records disagree, use this '
+                        'value as FROM anyway (operator-decided, never '
+                        'guessed; e.g. 0x2)')
     s.set_defaults(func=cmd_find)
 
     s = sub.add_parser('from-ifr', parents=[common],

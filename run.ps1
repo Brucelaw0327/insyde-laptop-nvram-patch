@@ -220,7 +220,26 @@ function Locate {
     $out = Join-Path $here ('patches\{0}.patch' -f $slug)
 
     Write-Host ""
-    & $py @pyArgs $tool find $img (@($kw -split '\s+' | Where-Object { $_ })) @liveArgs --out $out
+    $o = & $py @pyArgs $tool find $img (@($kw -split '\s+' | Where-Object { $_ })) @liveArgs --out $out 2>&1
+    $o | ForEach-Object { Write-Host "  $_" }
+    if (-not (Test-Path -LiteralPath $out)) {
+        # the most common reason is Setup/Custom disagreeing: offer the
+        # operator-decided FROM instead of just dying.
+        $dis = @($o | Select-String 'live records disagree \((.+?)\)')
+        if ($dis) {
+            Write-Host ""
+            Write-Host ("  records disagree: {0}" -f $dis[0].Matches[0].Groups[1].Value) -ForegroundColor Yellow
+            Write-Host "  A dump alone cannot tell which record the firmware honours."
+            Write-Host "  If you KNOW the effective value (e.g. you verified the feature's real state in the OS), type it as FROM;"
+            Write-Host "  otherwise leave blank, flip the setting once in BIOS to re-sync the records, and re-dump."
+            $ans = (Read-Host "  FROM value to use (hex like 0x2, blank = cancel)").Trim()
+            if ($ans) {
+                Write-Host ""
+                $o = & $py @pyArgs $tool find $img (@($kw -split '\s+' | Where-Object { $_ })) @liveArgs --out $out --from $ans 2>&1
+                $o | ForEach-Object { Write-Host "  $_" }
+            }
+        }
+    }
     Write-Host ""
     if (Test-Path -LiteralPath $out) {
         Write-Host ("  candidate patch written to: {0}" -f $out) -ForegroundColor Green
