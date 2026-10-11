@@ -1,0 +1,28 @@
+# ---- local machine identity: never publish -------------------------------
+machine.txt
+
+# ---- H2OUVE tool + driver: not redistributable, bring your own ----------
+h2ouve/*.exe
+h2ouve/*.sys
+h2ouve/*.cat
+h2ouve/*.inf
+
+# ---- NVRAM dumps and generated record files: machine-specific -----------
+h2ouve/*.txt
+
+# ---- run artifacts ------------------------------------------------------
+stat_*.txt
+wr_*.txt
+undo_*.txt
+_*.txt
+_*.bat
+
+# ---- python ------------------------------------------------------------
+__pycache__/
+*.pyc
+
+# extracted firmware images (from run.cmd option 2 / ifr_locate extract)
+bios_cache/
+
+# H2OUVE writes its own log when run from h2ouve\
+h2ouve/*.log

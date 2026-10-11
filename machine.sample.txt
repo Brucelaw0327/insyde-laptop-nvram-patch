@@ -1,0 +1,32 @@
+# machine.txt -- LOCAL file, git-ignored.  Copy this to machine.txt and fill in
+# YOUR values.  They record the identity your record files are generated on, so
+# a record built here can never be written to a different machine/BIOS by error.
+#
+# NOTE: you usually do not need this template -- run.cmd option 1 seeds
+# machine.txt automatically (from this machine's registry identity) when the
+# file does not exist.  Use this template
+# when preparing the folder on a different PC, or when you want different
+# values than the live ones.
+#
+# Get BIOS / BOARD / MODEL by running run.cmd option 1 -- it prints this
+# machine's values even when machine.txt does not exist yet.
+
+BIOS=<BIOSVersion>
+BOARD=<BaseBoardProduct>
+MODEL=<SystemProductName>
+
+# ---------------------------------------------------------------------------
+# This file is the IDENTITY GATE ONLY.  The byte to change is described by a
+# patch file in patches\ -- never here:
+#
+#     patches\<your-setting>.patch   (make one: run.cmd option 2)
+#     docs\making-a-patch.md         (the format)
+#
+# applied with
+#
+#     run.cmd option 4
+#     -- or --
+#     powershell -ExecutionPolicy Bypass -File apply_patch.ps1 -Patch patches\<your-setting>.patch
+#
+# Older releases accepted offset keys here (TARGET_* / FTPM_*); that legacy
+# path has been removed.  A byte change comes from a patch file, full stop.
