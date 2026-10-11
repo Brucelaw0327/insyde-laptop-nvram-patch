@@ -86,9 +86,9 @@ Double-click **`run.cmd`**; everything funnels through its menu:
 
 | Menu option | What it really runs | Effect |
 |---|---|---|
-| 1 — status probe | `check_status.ps1` | read-only: identity, BitLocker, TPM dependents. Seeds `machine.txt` on first run. **Safe any time.** |
+| 1 — status probe | `check_status.ps1 -Dump` | read-only: identity, BitLocker, TPM dependents. Seeds `machine.txt` on first run, then refreshes the live NVRAM dump `h2ouve\vars_live.txt` (option 2 reuses it for `now=` values). **Safe any time.** |
 | 2 — locate a setting | `tools\ifr_locate.py extract` + `find --out` | read-only: unwraps your BIOS update package to the Setup module, decodes the IFR, writes a candidate patch. Blank keyword = list EVERY setting (with live/default values), pick by number |
-| 3 — status probe for a patch | `check_status.ps1 -Patch <file>` | adds the live byte(s) a chosen patch would change. **Safe any time.** |
+| 3 — status probe for a patch | `check_status.ps1 -Patch <file> -Dump` | adds the live byte(s) a chosen patch would change; also refreshes `h2ouve\vars_live.txt`. **Safe any time.** |
 | 4 — apply a patch | `apply_patch.ps1 -Patch <file>` | **MODIFIES NVRAM** — asks which `patches\*.patch`, demands a typed `YES`, relaunches elevated |
 | 5 — restore (undo) | `restore_original.ps1 -Patch <file>` | **MODIFIES NVRAM** — writes the original records back |
 

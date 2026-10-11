@@ -78,9 +78,9 @@ manage-bde -protectors -disable C:    # 开机后再重新启用
 
 | 菜单项 | 实际执行的 | 效果 |
 |---|---|---|
-| 1 — 状态探针 | `check_status.ps1` | 只读：身份、BitLocker、TPM 依赖项。首次运行自动生成 `machine.txt`。**任何时刻都安全。** |
+| 1 — 状态探针 | `check_status.ps1 -Dump` | 只读：身份、BitLocker、TPM 依赖项。首次运行自动生成 `machine.txt`，随后刷新现场 NVRAM dump（`h2ouve\vars_live.txt`，选项 2 复用它显示 `now=` 现值）。**任何时刻都安全。** |
 | 2 — 在固件里定位设置 | `tools\ifr_locate.py extract` + `find --out` | 只读：把 BIOS 升级包一路解到 Setup 模块，解码 IFR，写出候选 patch。关键词留空 = 列出全部设置（带现值/默认值），输编号即选中 |
-| 3 — 针对某个 patch 的探针 | `check_status.ps1 -Patch <文件>` | 额外显示所选 patch 将改动的现场字节。**任何时刻都安全。** |
+| 3 — 针对某个 patch 的探针 | `check_status.ps1 -Patch <文件> -Dump` | 额外显示所选 patch 将改动的现场字节；同样会刷新 `h2ouve\vars_live.txt`。**任何时刻都安全。** |
 | 4 — 应用一个 patch | `apply_patch.ps1 -Patch <文件>` | **改 NVRAM**——列出 `patches\*.patch` 供选择，要求键入 `YES` 确认，自动提权 |
 | 5 — 回滚（撤销） | `restore_original.ps1 -Patch <文件>` | **改 NVRAM**——把原始记录写回去 |
 

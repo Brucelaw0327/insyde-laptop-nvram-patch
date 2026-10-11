@@ -13,8 +13,12 @@
 #   * BitLocker / device encryption, VBS / Credential Guard / HVCI and Windows
 #     Hello -- everything that breaks when a TPM disappears.
 #   * TPM presence on the OS side.
+#   * with -Dump: one H2OUVE -gv pass at the end -> h2ouve\vars_live.txt
+#     (read-only; the same dump option 2 reuses to show now= values).  Runs in
+#     the already-elevated window, so it costs no extra UAC prompt.  Needs
+#     H2OUVE present; skipped with a note when it is not.
 #
-# Usage:  check_status.ps1 [-Patch patches\<your>.patch] [-OutDir <dir>]
+# Usage:  check_status.ps1 [-Patch patches\<your>.patch] [-OutDir <dir>] [-Dump]
 #         With -Patch it explains the SAME patch apply_patch.ps1 would apply.
 #
 # Log: stat_<timestamp>.txt next to this script.
@@ -24,7 +28,8 @@
 
 param(
     [string]$Patch = '',
-    [string]$OutDir = ''
+    [string]$OutDir = '',
+    [switch]$Dump
 )
 
 $ErrorActionPreference = 'Continue'
@@ -369,6 +374,35 @@ try {
 $dev = Get-PnpDevice -Class SecurityDevices -ErrorAction SilentlyContinue
 if ($dev) { foreach ($d in $dev) { Say ("  device  : {0}   status={1}" -f $d.InstanceId, $d.Status) } }
 else { Say "  device  : none under SecurityDevices  <== ACPI\MSFT0101 gone" 'Green' }
+
+# ---------------------------------------------------------------- optional live NVRAM dump
+# One H2OUVE -gv pass -> h2ouve\vars_live.txt.  Read-only (-gv only dumps).
+# Option 2 reuses the newest dump in h2ouve\ to show now= values, so running
+# the probe first means option 2 never has to dump again.  Skipped (with a
+# note) when H2OUVE is not in h2ouve\ or the session is not elevated.
+if ($Dump) {
+    Say ""
+    Say "--- live NVRAM dump (H2OUVE -gv, read-only) ---" 'Cyan'
+    $h   = Join-Path $here 'h2ouve'
+    $exe = Join-Path $h 'H2OUVE-W-CONSOLEx64.exe'
+    if (-not $isAdmin) {
+        Say "  not elevated -- skipping the dump (H2OUVE -gv needs admin)." 'Yellow'
+    } elseif (-not (Test-Path -LiteralPath $exe)) {
+        Say ("  H2OUVE not found: {0} -- skipped.  See h2ouve\README.md." -f $exe) 'Yellow'
+    } else {
+        $out = Join-Path $h 'vars_live.txt'
+        if (Test-Path -LiteralPath $out) { Remove-Item -LiteralPath $out -Force }
+        Push-Location -LiteralPath $h
+        & $exe -gv vars_live.txt
+        $rc = $LASTEXITCODE
+        Pop-Location
+        if ($rc -eq 0 -and (Test-Path -LiteralPath $out) -and (Get-Item $out).Length -gt 0) {
+            Say ("  NVRAM dumped -> {0}  ({1} bytes)  -- option 2 will show now= values" -f $out, (Get-Item $out).Length) 'Green'
+        } else {
+            Say ("  H2OUVE -gv failed (exit code {0}) -- no dump written." -f $rc) 'Red'
+        }
+    }
+}
 
 Flush
 Say ""

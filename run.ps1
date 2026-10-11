@@ -88,11 +88,15 @@ function Elevated([string]$file, [string[]]$scriptArgs) {
 # through the same Elevated() channel as the writers.
 function Probe([string]$patchFile) {
     $ps1 = Join-Path $here 'check_status.ps1'
-    $a = @('-OutDir', $here)
+    # -Dump: after the report, refresh h2ouve\vars_live.txt in the SAME
+    # elevated window (one UAC prompt).  Option 2 then always has fresh
+    # now= values and never needs its own dump prompt.
+    $a = @('-OutDir', $here, '-Dump')
     if ($patchFile) { $a += @('-Patch', $patchFile) }
     Elevated $ps1 $a
     Write-Host ""
     Write-Host ("  log written to the newest stat_*.txt in {0}" -f $here) -ForegroundColor Green
+    Write-Host ("  live NVRAM dump refreshed: h2ouve\vars_live.txt (used by option 2)") -ForegroundColor Green
 }
 
 function Locate {
