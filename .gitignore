@@ -26,3 +26,6 @@ bios_cache/
 
 # H2OUVE writes its own log when run from h2ouve\
 h2ouve/*.log
+
+# locally generated candidate patches are machine-specific -- never publish
+patches/*.patch

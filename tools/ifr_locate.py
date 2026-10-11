@@ -818,25 +818,62 @@ def print_question(q, indent='  '):
         print('%s      Numeric  min=%s max=%s' % (indent, hexv(d['min']), hexv(d['max'])))
 
 
-def patch_stub(q):
-    """Best-effort patch-file stub for a two-valued selector."""
+def patch_stub(q, live=None):
+    """Best-effort patch-file stub for a two-valued selector.
+
+    FROM prefers the live NVRAM value when the --live dump agrees across
+    records (the gates reject anything else anyway); the option-table
+    heuristics are only the fallback.  TO is then the remaining "meaningful"
+    direction (firmware-TPM flavour of on, then enable/on, then whatever
+    differs from FROM).
+    """
     vs = q.get('varstore') or {}
     opts = [o for o in q.get('options', []) if o.get('value') is not None]
     if len(opts) < 2:
         return None
     low = [(o, (o['name'] or '').lower()) for o in opts]
-    target = source = None
-    for o, n in low:                       # the "off" side becomes the target
-        if target is None and ('disable' in n or n == 'off'):
+
+    from_opt = None
+    live_note = None
+    if live:
+        vals = sorted({int(e['value'], 16) if isinstance(e['value'], str)
+                       else e['value'] for e in live})
+        if len(vals) == 1:
+            from_opt = next((o for o in opts if o['value'] == vals[0]), None)
+            if from_opt is None:
+                live_note = 'live value 0x%x has no matching option name' % vals[0]
+        else:
+            live_note = 'live records disagree; FROM guessed from the option table'
+
+    if from_opt is None:                   # fallback: any enable/on
+        for o, n in low:
+            if 'enable' in n or n == 'on':
+                from_opt = o
+                break
+    if from_opt is None and opts:
+        from_opt = opts[0]                 # last resort
+
+    # TO: the firmware-TPM flavour of "on" first, then any enable/on, then
+    # simply the first option whose value differs from FROM.
+    target = None
+    for o, n in low:
+        if o is not from_opt and o['value'] != from_opt['value'] and 'firmware' in n:
             target = o
-    for o, n in low:                       # then the firmware-TPM flavour of "on"
-        if source is None and 'firmware' in n:
-            source = o
-    for o, n in low:                       # fall back to any enable/on
-        if source is None and ('enable' in n or n == 'on'):
-            source = o
-    if source is None or target is None:
+            break
+    if target is None:
+        for o, n in low:
+            if o is not from_opt and o['value'] != from_opt['value'] \
+                    and ('enable' in n or n == 'on'):
+                target = o
+                break
+    if target is None:
+        for o in opts:
+            if o is not from_opt and o['value'] != from_opt['value']:
+                target = o
+                break
+    if target is None or target['value'] == from_opt['value']:
         return None
+
     name = vs.get('name') or '?'
     guid = (vs.get('guid') or '').strip('{}')
     prog = q.get('prompt') or 'setting'
@@ -844,6 +881,12 @@ def patch_stub(q):
     lines = [
         '# --- candidate patch file (verify by eye before use) ---',
         '# %s / %s' % (q.get('formset'), q.get('prompt')),
+        '# options: ' + '  '.join('%s=%s' % (o['name'], hexv(o['value']))
+                                  for o in opts),
+    ]
+    if live_note:
+        lines.append('# NOTE: ' + live_note)
+    lines += [
         '# save as patches\\%s.patch  and run it with:' % slug,
         '#   powershell -ExecutionPolicy Bypass -File apply_patch.ps1 -Patch patches\\%s.patch' % slug,
         '# RECORDS: the record names inside that store.  "Setup,Custom" is the',
@@ -853,7 +896,7 @@ def patch_stub(q):
         'GUID     = %s' % guid,
         'RECORDS  = Setup,Custom',
         'OFFSET   = %s' % hexv(q['var_offset']),
-        'FROM     = %s' % hexv(source['value']),
+        'FROM     = %s' % hexv(from_opt['value']),
         'TO       = %s' % hexv(target['value']),
     ]
     return '\n'.join(lines)
@@ -962,8 +1005,8 @@ def cmd_find(args):
     for k, q in hits[:args.limit]:
         print('-' * 74)
         print_question(q, indent='  ')
+        lv = live_read(q, recs) if recs is not None else None
         if recs is not None:
-            lv = live_read(q, recs)
             if lv:
                 for e in lv:
                     print('  %s  live[%s] = %s  (%s)' % (
@@ -976,7 +1019,7 @@ def cmd_find(args):
             print('  %s  IFR default = %s  (%s)' % (
                 ' ' * 11, hexv(dflt['value']) if dflt['value'] is not None else '?',
                 dflt['name'] or 'no option name'))
-        stub = patch_stub(q)
+        stub = patch_stub(q, live=lv)
         if stub:
             stubs.append(stub)
             print()
