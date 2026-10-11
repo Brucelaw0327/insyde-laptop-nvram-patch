@@ -177,11 +177,20 @@ function Locate {
             if (-not $f) { $f = '?' }
             $extra = ''
             if ($all[$i].live) {
-                $l = @($all[$i].live)[0]
-                if ($l) {
-                    $m = [string]$l.meaning
-                    if (-not $m) { $m = '' } else { $m = ' ' + $m }
-                    $extra = '   now={0}{1}' -f $l.value, $m
+                $lv = @($all[$i].live) | Where-Object { $_ }
+                $uniq = @($lv | ForEach-Object { [string]$_.value } | Select-Object -Unique)
+                if ($uniq.Count -eq 1) {
+                    $l = $lv[0]
+                    if ($l) {
+                        $m = [string]$l.meaning
+                        if (-not $m) { $m = '' } else { $m = ' ' + $m }
+                        $extra = '   now={0}{1}' -f $l.value, $m
+                    }
+                } else {
+                    # records disagree -- show BOTH, never pick one: a dump
+                    # alone cannot tell which record the firmware honours.
+                    $pairs = ($lv | ForEach-Object { '{0}={1}' -f $_.record, $_.value }) -join ' '
+                    $extra = '   now=<RECORDS DISAGREE: {0}>   check in BIOS before patching' -f $pairs
                 }
             } elseif ($null -ne $all[$i].PSObject.Properties['live']) {
                 $extra = '   now=<not in dump>'

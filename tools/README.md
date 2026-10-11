@@ -101,14 +101,17 @@ TO       = 0x0
 ```
 
 The stub is a **suggestion**. Read it before you save it — in particular check
-that `FROM`/`TO` landed on the pair you want. `FROM` prefers the live NVRAM
-value; when the Setup and Custom records disagree it takes **Custom**, which on
-Insyde stores carries the effective (BIOS/user-made) value while Setup is the
-factory image the firmware may rewrite at boot (confirmed on a machine where
-the TPM on/off state tracked Custom across a BIOS-defaults restore). `TO`
-prefers the meaningful direction: off when `FROM` is an "on" flavour, the
-firmware-TPM / enabled flavour otherwise. The option table is only the last
-fallback, and every guess prints a `# NOTE:` line.
+that `FROM`/`TO` landed on the pair you want. `FROM` is taken from the live
+NVRAM value **only when the Setup and Custom records agree**; when they
+disagree the stub refuses to guess, because a dump alone cannot tell which
+record the firmware honours. (Observed on one machine: fTPM stayed enabled
+while Custom read Disable and the TPM on/off state tracked Setup across
+reboots — neither "Custom wins" nor "Setup wins" is safe.) The way out: flip
+the setting once in BIOS setup — a BIOS-side change re-syncs the records —
+re-dump, and retry when they agree, or hand-write the patch. `TO` prefers the
+meaningful direction: off when `FROM` is an "on" flavour, the firmware-TPM /
+enabled flavour otherwise. The no-dump fallback guesses from the option
+table, and every guess prints a `# NOTE:` line.
 
 `--out` removes the copy-paste:
 `python ifr_locate.py find Setup.bin "Trust Platform Module" --out ..\patches\my.patch`

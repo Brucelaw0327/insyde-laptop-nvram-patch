@@ -821,15 +821,17 @@ def print_question(q, indent='  '):
 def patch_stub(q, live=None):
     """Best-effort patch-file stub for a two-valued selector.
 
-    FROM prefers the live NVRAM value.  When the records agree, that value is
-    unambiguous.  When they disagree, the Custom record wins: on Insyde stores
-    Setup carries the factory image while Custom carries the effective
-    (BIOS/user-made) value -- proven on a machine where a BIOS-setup change
-    (fTPM off) landed in Custom (0x0) while Setup kept the factory byte (0x2),
-    and restoring BIOS defaults reverted Custom.  The option-table heuristics
-    are only the last fallback (no dump, or no Custom record in it).  TO is
-    then the remaining "meaningful" direction (firmware-TPM flavour of on,
-    then enable/on, then whatever differs from FROM).
+    FROM is taken from the live NVRAM value ONLY when the Setup and Custom
+    records agree.  When they disagree the stub refuses to guess and prints
+    instructions instead: a dump alone cannot tell which record the firmware
+    honours.  Observed on one machine: fTPM stayed enabled while Custom read
+    Disable, and the TPM on/off state tracked Setup across reboots -- neither
+    "Custom wins" nor "Setup wins" is a safe rule.  The reliable way out is to
+    flip the setting once in BIOS setup (a BIOS-side change re-syncs the
+    records), re-dump, and retry when the records agree -- or hand-write the
+    patch (docs/making-a-patch.md).  TO is the remaining "meaningful"
+    direction: off when FROM is an "on" flavour, firmware-TPM / enable
+    flavour otherwise.
     """
     vs = q.get('varstore') or {}
     opts = [o for o in q.get('options', []) if o.get('value') is not None]
@@ -851,21 +853,13 @@ def patch_stub(q, live=None):
                 live_note = 'live value 0x%x has no matching option name' % vals[0]
         else:
             disagree = ', '.join('%s=0x%x' % (n, v) for n, v in ents)
-            cus = [(n, v) for n, v in ents if n.lower() == 'custom']
-            if cus:
-                from_opt = next((o for o in opts if o['value'] == cus[0][1]), None)
-                if from_opt is not None:
-                    live_note = ('live records disagree (%s); FROM taken from '
-                                 'Custom -- it carries the effective (BIOS/user) '
-                                 'value, Setup the factory default' % disagree)
-                else:
-                    live_note = ('live records disagree (%s); Custom value 0x%x '
-                                 'has no matching option name'
-                                 % (disagree, cus[0][1]))
-            else:
-                live_note = ('live records disagree (%s) and no Custom record '
-                             'in the dump; FROM guessed from the option table'
-                             % disagree)
+            print('  !! live records disagree (%s) -- no patch stub generated.' % disagree)
+            print('  !! A dump alone cannot tell which record this firmware honours')
+            print('  !! (observed: fTPM stayed enabled while Custom read Disable).')
+            print('  !! Flip the setting once in BIOS setup, re-dump, and retry')
+            print('  !! when the records agree -- or hand-write the patch:')
+            print('  !! docs/making-a-patch.md.')
+            return None
 
     if from_opt is None:                   # fallback: any enable/on
         for o, n in low:
