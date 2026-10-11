@@ -87,10 +87,10 @@ Double-click **`run.cmd`**; everything funnels through its menu:
 | Menu option | What it really runs | Effect |
 |---|---|---|
 | 1 — status probe | `check_status.ps1` | read-only: identity, BitLocker, TPM dependents. Seeds `machine.txt` on first run. **Safe any time.** |
-| 2 — status probe for a patch | `check_status.ps1 -Patch <file>` | adds the live byte(s) a chosen patch would change. **Safe any time.** |
-| 3 — apply a patch | `apply_patch.ps1 -Patch <file>` | **MODIFIES NVRAM** — asks which `patches\*.patch`, demands a typed `YES`, relaunches elevated |
-| 4 — restore (undo) | `restore_original.ps1 -Patch <file>` | **MODIFIES NVRAM** — writes the original records back |
-| 5 — locate a setting | `tools\ifr_locate.py find ... --out` | read-only: decodes your firmware's IFR and writes a candidate patch |
+| 2 — locate a setting | `tools\ifr_locate.py extract` + `find --out` | read-only: unwraps your BIOS update package to the Setup module, decodes the IFR, writes a candidate patch. Blank keyword = list EVERY setting (with live/default values), pick by number |
+| 3 — status probe for a patch | `check_status.ps1 -Patch <file>` | adds the live byte(s) a chosen patch would change. **Safe any time.** |
+| 4 — apply a patch | `apply_patch.ps1 -Patch <file>` | **MODIFIES NVRAM** — asks which `patches\*.patch`, demands a typed `YES`, relaunches elevated |
+| 5 — restore (undo) | `restore_original.ps1 -Patch <file>` | **MODIFIES NVRAM** — writes the original records back |
 
 Or run the engines directly:
 

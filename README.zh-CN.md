@@ -62,7 +62,7 @@ manage-bde -protectors -disable C:    # 开机后再重新启用
 动手前先跑 `run.cmd` 选 1（只读探针），以上
 信息它都会列出来。
 
-**3. 留好回滚路径。** `run.cmd` 选 4 会把原始字节写回去；请保管好首次
+**3. 留好回滚路径。** `run.cmd` 选 5 会把原始字节写回去；请保管好首次
 写入时生成的 `h2ouve/undo_<slug>.txt`（见[回滚](#回滚)）。
 
 **关于 `-Force`。** `apply_patch.ps1 -Force` 会一次性越过**所有**闸门——
@@ -79,10 +79,10 @@ manage-bde -protectors -disable C:    # 开机后再重新启用
 | 菜单项 | 实际执行的 | 效果 |
 |---|---|---|
 | 1 — 状态探针 | `check_status.ps1` | 只读：身份、BitLocker、TPM 依赖项。首次运行自动生成 `machine.txt`。**任何时刻都安全。** |
-| 2 — 针对某个 patch 的探针 | `check_status.ps1 -Patch <文件>` | 额外显示所选 patch 将改动的现场字节。**任何时刻都安全。** |
-| 3 — 应用一个 patch | `apply_patch.ps1 -Patch <文件>` | **改 NVRAM**——列出 `patches\*.patch` 供选择，要求键入 `YES` 确认，自动提权 |
-| 4 — 回滚（撤销） | `restore_original.ps1 -Patch <文件>` | **改 NVRAM**——把原始记录写回去 |
-| 5 — 在固件里定位设置 | `tools\ifr_locate.py find ... --out` | 只读：解码固件 IFR，写出候选 patch |
+| 2 — 在固件里定位设置 | `tools\ifr_locate.py extract` + `find --out` | 只读：把 BIOS 升级包一路解到 Setup 模块，解码 IFR，写出候选 patch。关键词留空 = 列出全部设置（带现值/默认值），输编号即选中 |
+| 3 — 针对某个 patch 的探针 | `check_status.ps1 -Patch <文件>` | 额外显示所选 patch 将改动的现场字节。**任何时刻都安全。** |
+| 4 — 应用一个 patch | `apply_patch.ps1 -Patch <文件>` | **改 NVRAM**——列出 `patches\*.patch` 供选择，要求键入 `YES` 确认，自动提权 |
+| 5 — 回滚（撤销） | `restore_original.ps1 -Patch <文件>` | **改 NVRAM**——把原始记录写回去 |
 
 也可以直接跑引擎：
 
@@ -166,13 +166,13 @@ powershell -ExecutionPolicy Bypass -File apply_patch.ps1 -Patch patches\my-setti
 
 3. **把 H2OUVE 放进 `h2ouve/`**——见 [`h2ouve/README.md`](h2ouve/README.md)。
 
-4. **做 patch。** 跑 `run.cmd` 选 5，指向你固件的 Setup 模块
+4. **做 patch。** 跑 `run.cmd` 选 2，指向你固件的 Setup 模块
    （`Setup_FE3542FE-….ffs`，用 UEFITool 抽取——见
    [`tools/README.md`](tools/README.md)），搜索 `Trust Platform Module`。
    它会写出 `patches\trust-platform-module.patch`。打开肉眼核对
    `FROM`/`TO`（`0x02` = 固件 TPM 开 → `0x00` = 禁用）。
 
-5. **应用。** 跑 `run.cmd` 选 3，选中该 patch，键入 `YES`。它会：
+5. **应用。** 跑 `run.cmd` 选 4，选中该 patch，键入 `YES`。它会：
    - BitLocker 还在保护任何卷时拒绝运行（退出码 11）；
      BitLocker 状态本身读不到时也拒绝运行（退出码 12）；
    - 身份或布局对不上时拒绝运行；
@@ -219,7 +219,7 @@ docs/making-a-patch.md       patch 格式，以及如何写自己的 patch
 
 ## 回滚
 
-`run.cmd` 选 4（`restore_original.ps1 -Patch <文件>`）会把
+`run.cmd` 选 5（`restore_original.ps1 -Patch <文件>`）会把
 `h2ouve/undo_<slug>.txt` 里的原始记录写回去——这是 patch 前 dump 的
 逐字节副本，由 `apply_patch.ps1` 在首次写入时生成（`<slug>` 是 patch 文件
 名；回滚引擎也接受旧名 `setup_undo.txt`）。因为这个文件**就是**原始字节
@@ -275,7 +275,7 @@ python tools\ifr_locate.py verify Setup.bin h2ouve\vars_orig.txt "Trust Platform
 |---|---|
 | `ABORT: turn BitLocker OFF`（退出码 11） | 还有卷被 TPM 保护。`manage-bde -off C:`（或 `-protectors -disable C:`），或者你持有恢复密钥时带 `-Force` 重跑。 |
 | `unable to confirm that no volume is TPM-protected`（退出码 12） | 两个 BitLocker API 都没响应。自己跑 `manage-bde -status`；如果每个卷都是*保护已关闭*，带 `-Force` 重跑。 |
-| 开机直接进**恢复模式** | TPM 消失时 BitLocker 还开着。输入恢复密钥，或跑 `run.cmd` 选 4 把 TPM 找回来，然后 `manage-bde -off C:`。 |
+| 开机直接进**恢复模式** | TPM 消失时 BitLocker 还开着。输入恢复密钥，或跑 `run.cmd` 选 5 把 TPM 找回来，然后 `manage-bde -off C:`。 |
 | Windows Hello / PIN 失效 | 预期行为——密钥封在 TPM 里。在登录选项里重新录入。 |
 | `GUID format is incorrect` | H2OUVE 要**不带**花括号的 GUID。脚本已经处理好了。 |
 | 写入报告成功但没有任何变化 | 最小记录没生效；脚本会自动改用完整 dump 重试。看 `-sv` 输出。 |

@@ -5,7 +5,7 @@ English version: [README.md](README.md)
 H2OUVE 工具就放在这个文件夹里。**本仓库不附带任何二进制**——它们是
 Insyde 的专有软件，再分发不是我们该做的事。
 
-在应用 patch 之前（`run.cmd` 选 3），把下面这些文件放到这里：
+在应用 patch 之前（`run.cmd` 选 4），把下面这些文件放到这里：
 
 | 文件 | 是什么 |
 |---|---|
@@ -23,9 +23,9 @@ Insyde 的专有软件，再分发不是我们该做的事。
 - `vars_new_full.txt` -- 打入单个字节补丁后的完整 dump
 - `setup_undo.txt` -- 原始记录的逐字节副本，通用回滚件
 - `undo_<slug>.txt` -- 同样的字节，按构建它的 patch 命名
-  （`run.cmd` 选 4 优先用这个）
+  （`run.cmd` 选 5 优先用这个）
 
-若缺最后三个文件，应用步骤（`run.cmd` 选 3 / `apply_patch.ps1`）会替你
+若缺最后三个文件，应用步骤（`run.cmd` 选 4 / `apply_patch.ps1`）会替你
 生成：dump NVRAM 再调用 `mkrec.py`。
 
 ## H2OUVE 的获取途径
