@@ -821,11 +821,15 @@ def print_question(q, indent='  '):
 def patch_stub(q, live=None):
     """Best-effort patch-file stub for a two-valued selector.
 
-    FROM prefers the live NVRAM value when the --live dump agrees across
-    records (the gates reject anything else anyway); the option-table
-    heuristics are only the fallback.  TO is then the remaining "meaningful"
-    direction (firmware-TPM flavour of on, then enable/on, then whatever
-    differs from FROM).
+    FROM prefers the live NVRAM value.  When the records agree, that value is
+    unambiguous.  When they disagree, the Custom record wins: on Insyde stores
+    Setup carries the factory image while Custom carries the effective
+    (BIOS/user-made) value -- proven on a machine where a BIOS-setup change
+    (fTPM off) landed in Custom (0x0) while Setup kept the factory byte (0x2),
+    and restoring BIOS defaults reverted Custom.  The option-table heuristics
+    are only the last fallback (no dump, or no Custom record in it).  TO is
+    then the remaining "meaningful" direction (firmware-TPM flavour of on,
+    then enable/on, then whatever differs from FROM).
     """
     vs = q.get('varstore') or {}
     opts = [o for o in q.get('options', []) if o.get('value') is not None]
@@ -833,17 +837,35 @@ def patch_stub(q, live=None):
         return None
     low = [(o, (o['name'] or '').lower()) for o in opts]
 
+    def _val(e):
+        return int(e['value'], 16) if isinstance(e['value'], str) else e['value']
+
     from_opt = None
     live_note = None
     if live:
-        vals = sorted({int(e['value'], 16) if isinstance(e['value'], str)
-                       else e['value'] for e in live})
+        ents = [(e.get('record') or '', _val(e)) for e in live]
+        vals = sorted({v for _, v in ents})
         if len(vals) == 1:
             from_opt = next((o for o in opts if o['value'] == vals[0]), None)
             if from_opt is None:
                 live_note = 'live value 0x%x has no matching option name' % vals[0]
         else:
-            live_note = 'live records disagree; FROM guessed from the option table'
+            disagree = ', '.join('%s=0x%x' % (n, v) for n, v in ents)
+            cus = [(n, v) for n, v in ents if n.lower() == 'custom']
+            if cus:
+                from_opt = next((o for o in opts if o['value'] == cus[0][1]), None)
+                if from_opt is not None:
+                    live_note = ('live records disagree (%s); FROM taken from '
+                                 'Custom -- it carries the effective (BIOS/user) '
+                                 'value, Setup the factory default' % disagree)
+                else:
+                    live_note = ('live records disagree (%s); Custom value 0x%x '
+                                 'has no matching option name'
+                                 % (disagree, cus[0][1]))
+            else:
+                live_note = ('live records disagree (%s) and no Custom record '
+                             'in the dump; FROM guessed from the option table'
+                             % disagree)
 
     if from_opt is None:                   # fallback: any enable/on
         for o, n in low:
@@ -853,13 +875,22 @@ def patch_stub(q, live=None):
     if from_opt is None and opts:
         from_opt = opts[0]                 # last resort
 
-    # TO: the firmware-TPM flavour of "on" first, then any enable/on, then
-    # simply the first option whose value differs from FROM.
+    # TO: a meaningful direction away from FROM.  When FROM is an "on" flavour
+    # the meaningful step is off (disable); otherwise prefer the firmware-TPM
+    # flavour of "on", then any enable/on, then the first differing option.
+    from_name = (from_opt['name'] or '').lower()
     target = None
-    for o, n in low:
-        if o is not from_opt and o['value'] != from_opt['value'] and 'firmware' in n:
-            target = o
-            break
+    if 'enable' in from_name or from_name == 'on':
+        for o, n in low:
+            if o is not from_opt and o['value'] != from_opt['value'] \
+                    and ('disable' in n or n in ('off', 'disabled')):
+                target = o
+                break
+    if target is None:
+        for o, n in low:
+            if o is not from_opt and o['value'] != from_opt['value'] and 'firmware' in n:
+                target = o
+                break
     if target is None:
         for o, n in low:
             if o is not from_opt and o['value'] != from_opt['value'] \

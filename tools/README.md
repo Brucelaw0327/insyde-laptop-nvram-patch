@@ -101,10 +101,14 @@ TO       = 0x0
 ```
 
 The stub is a **suggestion**. Read it before you save it — in particular check
-that `FROM`/`TO` landed on the pair you want (`0x2` here is *firmware* TPM,
-which is the usual "on" for an fTPM-only machine; `0x1` is a discrete TPM). The
-guesswork is deliberately conservative: `TO` prefers the *disable/off* option
-and `FROM` the *firmware* flavour of "on".
+that `FROM`/`TO` landed on the pair you want. `FROM` prefers the live NVRAM
+value; when the Setup and Custom records disagree it takes **Custom**, which on
+Insyde stores carries the effective (BIOS/user-made) value while Setup is the
+factory image the firmware may rewrite at boot (confirmed on a machine where
+the TPM on/off state tracked Custom across a BIOS-defaults restore). `TO`
+prefers the meaningful direction: off when `FROM` is an "on" flavour, the
+firmware-TPM / enabled flavour otherwise. The option table is only the last
+fallback, and every guess prints a `# NOTE:` line.
 
 `--out` removes the copy-paste:
 `python ifr_locate.py find Setup.bin "Trust Platform Module" --out ..\patches\my.patch`
